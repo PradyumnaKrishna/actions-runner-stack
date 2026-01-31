@@ -1,0 +1,101 @@
+# Values for the gha-runner-scale-set Helm chart (modern ARC).
+githubConfigUrl: "https://github.com/ORG_OR_REPO"
+githubConfigSecret: arc-github-auth
+
+template:
+  spec:
+    # Optional: hardcode registry DNS if you don't have cluster DNS for it.
+    # hostAliases:
+    #   - ip: "10.0.1.99"          # node IP where Traefik listens
+    #     hostnames: ["registry.local"]
+
+    initContainers:
+      - name: init-dind-externals
+        image: registry.local/runner:latest
+        command:
+          ["cp", "-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+        volumeMounts:
+          - name: dind-externals
+            mountPath: /home/runner/tmpDir
+
+    containers:
+      - name: dind
+        image: docker:dind
+        args:
+          - dockerd
+          - --host=unix:///var/run/docker.sock
+          - --group=$(DOCKER_GROUP_GID)
+          - --mtu=1300
+        env:
+          - name: DOCKER_GROUP_GID
+            # Match the docker group inside the runner image (varies by base image).
+            value: "123"
+        securityContext:
+          privileged: true
+        startupProbe:
+          exec: { command: ["docker", "info"] }
+          initialDelaySeconds: 0
+          failureThreshold: 24
+          periodSeconds: 5
+        volumeMounts:
+          - name: dind-sock
+            mountPath: /var/run
+          - name: dind-externals
+            mountPath: /home/runner/externals
+          - name: dind-storage
+            mountPath: /var/lib/docker
+          # Optional: trust custom registry CA
+          # - name: registry-ca
+          #   mountPath: /etc/docker/certs.d/registry.local
+          #   readOnly: true
+          # Optional: registry auth for DinD pulls
+          # - name: docker-secret
+          #   mountPath: /root/.docker/config.json
+          #   subPath: config.json
+          #   readOnly: true
+
+      - name: runner # must be exactly "runner"
+        image: registry.local/runner:latest
+        command: ["/home/runner/run.sh"]
+        env:
+          - name: DOCKER_HOST
+            value: unix:///var/run/docker.sock
+          - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+            value: "120"
+          # Optional: point to your actions cache server (results service).
+          # - name: ACTIONS_RESULTS_URL
+          #   value: "http://registry.local:30300/"
+          # - name: CUSTOM_ACTIONS_RESULTS_URL
+          #   value: "http://registry.local:30300/"
+          - name: DOCKER_CONFIG
+            value: /home/runner/.docker
+        # Optional: only enable if your workflows need privileged operations.
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: dind-sock
+            mountPath: /var/run
+          # Optional: registry auth for runner container
+          # - name: docker-secret
+          #   mountPath: /home/runner/.docker/config.json
+          #   subPath: config.json
+          #   readOnly: true
+
+    volumes:
+      - name: dind-sock
+        emptyDir: {}
+      - name: dind-externals
+        emptyDir: {}
+      - name: dind-storage
+        emptyDir: {}
+      # Optional: trust custom registry CA
+      # - name: registry-ca
+      #   secret:
+      #     secretName: registry-ca # must contain key "ca.crt"
+      # Optional: registry auth for runner container
+      # - name: docker-secret
+      #   secret:
+      #     secretName: dockerhub-config
+      #     items:
+      #       - key: .dockerconfigjson # key inside the Secret
+      #         path: config.json

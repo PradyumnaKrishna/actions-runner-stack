@@ -1,0 +1,19 @@
+# OS / editor
+.DS_Store
+
+# Local env
+.env
+.env.*
+
+# TLS / secrets
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+*.der
+*.kubeconfig
+
+# Kubernetes secrets (keep *.yaml.example)
+**/secrets/*.yaml
+**/secrets/*.yml

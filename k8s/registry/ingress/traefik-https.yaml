@@ -1,0 +1,17 @@
+# traefik-registry-https.yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: registry-https
+  namespace: registry
+spec:
+  entryPoints: [websecure]
+  routes:
+  - match: Host(`registry.local`) # change to your registry host
+    kind: Rule
+    services:
+    - name: registry
+      port: 5000
+      passHostHeader: true
+  tls:
+    secretName: registry-tls

@@ -1,0 +1,47 @@
+# actions-cache-server.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actions-cache-server
+  namespace: actions-cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: actions-cache-server
+  template:
+    metadata:
+      labels:
+        app: actions-cache-server
+    spec:
+      containers:
+      - name: cache-server
+        image: ghcr.io/falcondev-oss/github-actions-cache-server:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: API_BASE_URL
+          # The base URL clients use to reach this cache server.
+          value: http://registry.local:30300
+        volumeMounts:
+        - name: cache-data
+          mountPath: /app/.data
+      volumes:
+      - name: cache-data
+        hostPath:
+          path: /mnt/data/container/actions-cache
+          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: actions-cache-server
+  namespace: actions-cache
+spec:
+  type: NodePort               # or ClusterIP / LoadBalancer
+  selector:
+    app: actions-cache-server
+  ports:
+  - port: 3000
+    targetPort: 3000
+    nodePort: 30300            # optional; accessible on <nodeIP>:30300
