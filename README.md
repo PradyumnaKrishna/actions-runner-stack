@@ -34,7 +34,7 @@ Use the official ARC [quickstart guide](https://docs.github.com/en/actions/tutor
 
 ## Setup
 
-For the full setup used here (ARC + local registry + local cache server), see <docs/setup.md>.
+For the full setup used here (ARC + local registry + local cache server), see [docs/setup.md](docs/setup.md).
 
 ## References
 

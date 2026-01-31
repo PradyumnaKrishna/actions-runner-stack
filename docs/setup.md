@@ -10,8 +10,8 @@ This guide describes the core ARC runner setup. Registry and cache server setup 
 
 ## 1) Optional services (separate guides)
 
-- Registry: <setup-registry.md>
-- Cache server: <setup-cache-server.md>
+- Registry: [setup-registry.md](setup-registry.md)
+- Cache server: [setup-cache-server.md](setup-cache-server.md)
 
 ## 2) Build and push the runner image
 
@@ -72,8 +72,8 @@ Edit `k8s/arc/values/values.dind.yaml`:
 
 - Set `githubConfigUrl` to your org or repo
 - Ensure the runner image points to the registry and tag you built.
-- If you use a private registry, follow <setup-registry.md> to set up the CA secret and mounts.
-- If you use a cache server, follow <setup-cache-server.md> to set `ACTIONS_RESULTS_URL` and `CUSTOM_ACTIONS_RESULTS_URL`.
+- If you use a private registry, follow [setup-registry.md](setup-registry.md) to set up the CA secret and mounts.
+- If you use a cache server, follow [setup-cache-server.md](setup-cache-server.md) to set `ACTIONS_RESULTS_URL` and `CUSTOM_ACTIONS_RESULTS_URL`.
 - Uncomment the docker auth secret mount/volume if your registry requires auth
 
 ## 5) Install ARC via Helm
