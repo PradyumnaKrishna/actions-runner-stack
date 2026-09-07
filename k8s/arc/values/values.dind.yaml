@@ -64,9 +64,9 @@ template:
             value: "120"
           # Optional: point to your actions cache server (results service).
           # - name: ACTIONS_RESULTS_URL
-          #   value: "http://registry.local:30300/"
+          #   value: "http://actions-cache-server.actions-cache.svc.cluster.local/"
           # - name: CUSTOM_ACTIONS_RESULTS_URL
-          #   value: "http://registry.local:30300/"
+          #   value: "http://actions-cache-server.actions-cache.svc.cluster.local/"
           - name: DOCKER_CONFIG
             value: /home/runner/.docker
         # Optional: only enable if your workflows need privileged operations.

@@ -1,24 +1,22 @@
 # Setup: Actions cache server
 
-This guide explains how we run the GitHub Actions cache server inside the cluster and wire runner pods to it through a NodePort service and `hostAliases`.
+This guide explains how we run the GitHub Actions cache server inside the cluster and wire runner pods to it over cluster DNS.
 
 ## What the cache server deployment does
 
-`k8s/cache-server/deployment.yaml` creates a Deployment and a NodePort Service for the cache server. The container runs `ghcr.io/falcondev-oss/github-actions-cache-server:latest` and stores cache data on the node using a hostPath volume. The Service exposes port 3000 inside the cluster and also opens a NodePort (30300 by default) on the node, so the cache server is reachable at `<node-ip>:30300`.
+`k8s/cache-server/deployment.yaml` creates a Deployment and a ClusterIP Service for the cache server, exposed on port 80. The container stores cache data on the node using a hostPath volume.
 
 The Deployment sets `API_BASE_URL` to the public base URL the cache server uses when returning cache URLs. This must match how the runner pods will reach the service (host + port), otherwise cache upload/download links will be wrong.
 
 ## How the runner pods reach the cache server
 
-We do not rely on the in‑cluster Service DNS for the cache server. Instead, runner pods resolve a host name using `hostAliases` (in `k8s/arc/values/values.dind.yaml`) and connect to the NodePort service on the node IP. The runner container is configured with `ACTIONS_RESULTS_URL` and `CUSTOM_ACTIONS_RESULTS_URL` to point at that host and port.
-
-This means the cache server is accessed as:
+Cache traffic comes from the runner container itself, which runs inside a pod and so resolves cluster DNS. No `hostAliases` or node-level exposure is needed. The runner container is configured with `ACTIONS_RESULTS_URL` and `CUSTOM_ACTIONS_RESULTS_URL` pointing at the Service:
 
 ```
-http://<cache-host>:30300/
+http://actions-cache-server.actions-cache.svc.cluster.local/
 ```
 
-Where `<cache-host>` is mapped to the node IP through `hostAliases`.
+(This is unlike the runner image itself, which is pulled by the node's container runtime and therefore does need an address the node can reach — see [setup-registry.md](setup-registry.md).)
 
 ## Step 1: Deploy the cache server
 
@@ -40,7 +38,7 @@ Edit `k8s/cache-server/deployment.yaml` and set `API_BASE_URL` to the URL that r
 
 ```yaml
 - name: API_BASE_URL
-  value: http://registry.local:30300
+  value: http://actions-cache-server.actions-cache.svc.cluster.local
 ```
 
 Re‑apply if you changed it:
@@ -53,17 +51,16 @@ kubectl apply -f k8s/cache-server/deployment.yaml
 
 Edit `k8s/arc/values/values.dind.yaml`:
 
-1. Add or update `hostAliases` so `registry.local` resolves to the node IP where the NodePort is reachable.
-2. Uncomment and set the cache URLs:
+Uncomment and set the cache URLs:
 
 ```yaml
 - name: ACTIONS_RESULTS_URL
-  value: "http://registry.local:30300/"
+  value: "http://actions-cache-server.actions-cache.svc.cluster.local/"
 - name: CUSTOM_ACTIONS_RESULTS_URL
-  value: "http://registry.local:30300/"
+  value: "http://actions-cache-server.actions-cache.svc.cluster.local/"
 ```
 
-These must match `API_BASE_URL` in the cache server deployment.
+These must match `API_BASE_URL` in the cache server deployment exactly.
 
 ## Step 4: Use the custom runner image
 
@@ -82,4 +79,4 @@ Install or upgrade your runner scale set with the updated values file so the run
 
 ## Validate
 
-Trigger a workflow that uses `actions/cache` and verify cache hits/misses are routed through the cache server. If you see cache upload errors, double‑check that `API_BASE_URL`, `ACTIONS_RESULTS_URL`, and `CUSTOM_ACTIONS_RESULTS_URL` all match and that the host alias resolves inside runner pods.
+Trigger a workflow that uses `actions/cache` and verify cache hits/misses are routed through the cache server. If you see cache upload errors, double‑check that `API_BASE_URL`, `ACTIONS_RESULTS_URL`, and `CUSTOM_ACTIONS_RESULTS_URL` all match exactly.

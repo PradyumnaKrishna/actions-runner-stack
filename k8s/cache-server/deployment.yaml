@@ -16,13 +16,14 @@ spec:
     spec:
       containers:
       - name: cache-server
-        image: ghcr.io/falcondev-oss/github-actions-cache-server:latest
+        image: ghcr.io/falcondev-oss/github-actions-cache-server:9.6.0@sha256:d96b430c33bf3e2e81c0e4a813ab5c9c2c057e33f63be53c8039e8ec4be53df2
         ports:
         - containerPort: 3000
         env:
         - name: API_BASE_URL
-          # The base URL clients use to reach this cache server.
-          value: http://registry.local:30300
+          # Must match the Service below exactly; a mismatch surfaces as
+          # 404s on cache upload, not a connection error.
+          value: http://actions-cache-server.actions-cache.svc.cluster.local
         volumeMounts:
         - name: cache-data
           mountPath: /app/.data
@@ -38,10 +39,10 @@ metadata:
   name: actions-cache-server
   namespace: actions-cache
 spec:
-  type: NodePort               # or ClusterIP / LoadBalancer
+  # ClusterIP: runner pods reach this over cluster DNS. Use NodePort or
+  # LoadBalancer only if something outside the cluster needs it.
   selector:
     app: actions-cache-server
   ports:
-  - port: 3000
+  - port: 80
     targetPort: 3000
-    nodePort: 30300            # optional; accessible on <nodeIP>:30300
