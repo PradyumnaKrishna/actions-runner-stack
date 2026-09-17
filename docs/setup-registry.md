@@ -1,114 +1,115 @@
 # Setup: Container registry
 
-This guide explains how we run a private Docker registry in‑cluster and wire runner pods to it. The registry is exposed over HTTP by default, with an optional HTTPS path using Traefik and a custom certificate that the runner trusts.
+Optional. The runners work with any registry the cluster can pull from; this
+sets one up inside the cluster, reachable at
+`mycr.registry.svc.cluster.local` over TLS. Nodes and workflows use the same
+name, and nothing is exposed outside the cluster.
 
-## What the registry manifests do
+## What the manifests do
 
-- `k8s/registry/base/storage.yaml` creates the `registry` namespace plus a hostPath PV/PVC to persist images on the node.
-- `k8s/registry/base/registry.yaml` creates the registry Deployment (image `registry:2`) and a ClusterIP Service on port 5000.
-- `k8s/registry/ingress/traefik-https.yaml` optionally exposes the registry over HTTPS via Traefik.
-- `k8s/registry/scripts/mkcert.sh` generates a local certificate and stores:
-  - a TLS secret in the `registry` namespace
-  - a CA secret in `arc-runners` so runner pods trust the registry certificate
+- `k8s/registry/base/storage.yaml` creates the `registry` namespace and a PVC for image data.
+- `k8s/registry/base/tls.yaml` creates a private CA and the registry certificate, issued and renewed by cert-manager.
+- `k8s/registry/base/registry.yaml` runs the registry with that certificate, as a ClusterIP Service on port 443.
 
-## Step 1: Choose the registry host
+## Prerequisite: cert-manager
 
-Pick a hostname (examples: `registry.local`, `registry.mycorp.internal`). Runner pods must be able to resolve this hostname.
-
-If you don’t have cluster DNS, use `hostAliases` in `k8s/arc/values/values.dind.yaml` to map the hostname to a node IP.
-
-## Step 2: Provision storage
-
-Update the hostPath in `k8s/registry/base/storage.yaml`:
-
-```yaml
-hostPath:
-  path: /mnt/data/container/registry
+```bash
+helm repo add jetstack https://charts.jetstack.io
+helm upgrade --install cert-manager jetstack/cert-manager \
+  -n cert-manager --create-namespace --version v1.21.2 --set crds.enabled=true --wait
 ```
 
-Apply the storage manifests:
+## Step 1: Deploy
 
 ```bash
 kubectl apply -f k8s/registry/base/storage.yaml
+kubectl apply -f k8s/registry/base/tls.yaml
+kubectl apply -f k8s/registry/base/registry.yaml
+kubectl -n registry get certificate mycr-tls
 ```
 
-## Step 3: Deploy the registry
+The Service uses a fixed ClusterIP (`10.43.0.100`) so nodes have a stable
+address to map the name to. Change it in `registry.yaml` if that address is
+taken or your service CIDR differs (k3s default: `10.43.0.0/16`).
+
+## Step 2: Trust the CA on every node
+
+Images are pulled by the container runtime on the node, which sits outside the
+cluster network. Each node needs the CA and a way to resolve the name:
 
 ```bash
-kubectl apply -f k8s/registry/base/registry.yaml
+kubectl -n cert-manager get secret registry-ca -o jsonpath='{.data.ca\.crt}' | base64 -d > registry-ca.crt
+
+sudo cp registry-ca.crt /usr/local/share/ca-certificates/actions-runner-stack-ca.crt
+sudo update-ca-certificates
+
+echo "10.43.0.100 mycr.registry.svc.cluster.local" | sudo tee -a /etc/hosts
 ```
 
-Verify:
+The system trust store covers containerd, podman and curl, so no
+`registries.yaml` or per-tool config is needed. The CA is valid for ten years;
+put both steps in whatever provisions your nodes.
+
+Verify with `curl https://mycr.registry.svc.cluster.local/v2/`.
+
+## Step 3: Give runner pods the CA
+
+```bash
+kubectl -n arc-runners create secret generic registry-ca --from-file=ca.crt=registry-ca.crt
+```
+
+`k8s/arc/values/values.dind.yaml` mounts it at
+`/etc/docker/certs.d/mycr.registry.svc.cluster.local/` for the DinD sidecar.
+
+## Step 4: Build and push the runner image
+
+```bash
+podman build -t mycr.registry.svc.cluster.local/runner:<version> -f images/runner/Dockerfile .
+podman push mycr.registry.svc.cluster.local/runner:<version>
+```
+
+Pin `<version>` to an explicit tag; see [decisions.md](decisions.md) for why the
+runner version must stay current. Point the `runner` and `init-dind-externals`
+images in `k8s/arc/values/values.dind.yaml` at the tag you pushed.
+
+## Using it from workflows
+
+```yaml
+jobs:
+  build:
+    runs-on: your-runner-label
+    services:
+      db:
+        image: mycr.registry.svc.cluster.local/postgres:16
+    steps:
+      - run: docker pull mycr.registry.svc.cluster.local/alpine:3.20
+```
+
+## Validate
 
 ```bash
 kubectl -n registry get pods
-kubectl -n registry get svc
+curl https://mycr.registry.svc.cluster.local/v2/_catalog
 ```
 
-The registry is now reachable at `registry:5000` inside the cluster. For runner pods, we route traffic through a node IP (via Traefik or another ingress) and map the registry hostname using `hostAliases`.
+Then run a workflow that pulls from the registry and confirm it succeeds.
 
-## Step 4: Enable HTTPS and create the CA secret
+## Other ways to expose it
 
-Generate a certificate and create secrets:
+The setup above keeps the registry inside the cluster and uses a private CA,
+which costs one trust step per node. Two alternatives issue publicly trusted
+certificates instead, so nodes need no CA at all:
 
-```bash
-chmod +x k8s/registry/scripts/mkcert.sh
-REGISTRY_HOST=registry.local REGISTRY_NAMESPACE=registry ARC_NAMESPACE=arc-runners \
-  k8s/registry/scripts/mkcert.sh
-kubectl apply -f k8s/registry/ingress/traefik-https.yaml
-```
+**Tailscale.** With the [Tailscale Kubernetes operator](https://tailscale.com/kb/1236/kubernetes-operator),
+an `Ingress` with `ingressClassName: tailscale` gets a Let's Encrypt
+certificate for a `*.ts.net` name. Set the hostname in `spec.tls.hosts`; the
+`tailscale.com/hostname` annotation applies to Services, not Ingresses. The
+registry is then reachable from anything on the tailnet and nowhere else.
 
-This creates:
+**Traefik with cert-manager, on a domain you own.** Point a subdomain at the
+cluster and issue a certificate over the ACME DNS-01 challenge, which needs no
+inbound ports. Use this when machines outside the cluster and off the tailnet
+have to pull images.
 
-- `registry-tls` in the `registry` namespace
-- `registry-ca` in the `arc-runners` namespace
-
-If you do not use the script, you can also create the CA secret from the template in this repo:
-
-```bash
-cp k8s/arc/secrets/registry-ca.secret.yaml.example k8s/arc/secrets/registry-ca.secret.yaml
-kubectl apply -f k8s/arc/secrets/registry-ca.secret.yaml
-```
-
-## Step 5: Wire the registry into ARC
-
-Edit `k8s/arc/values/values.dind.yaml`:
-
-1) Add or update `hostAliases` so `registry.local` resolves to the node IP where your ingress listens.
-2) Trust the registry certificate by mounting the CA into the DinD container:
-
-```yaml
-# in the dind container mounts
-- name: registry-ca
-  mountPath: /etc/docker/certs.d/registry.local
-  readOnly: true
-
-# in volumes
-- name: registry-ca
-  secret:
-    secretName: registry-ca
-```
-
-3) If your registry requires auth, create and mount the docker config secret:
-
-```bash
-cp k8s/arc/secrets/docker-config.secret.yaml.example k8s/arc/secrets/docker-config.secret.yaml
-kubectl apply -f k8s/arc/secrets/docker-config.secret.yaml
-```
-
-Then mount `docker-secret` in the runner container.
-
-## Step 6: Build and push the runner image
-
-```bash
-docker build -t registry.local/runner:latest -f images/runner/Dockerfile .
-docker push registry.local/runner:latest
-```
-
-Make sure `k8s/arc/values/values.dind.yaml` points to `registry.local/runner:latest`.
-
-## Step 7: Validate
-
-- Registry pod is running: `kubectl -n registry get pods`
-- Runner pods can pull the runner image from the registry
-- If HTTPS is enabled, ensure the CA secret exists in `arc-runners`
+Both remove the per-node CA step. Neither adds authentication -- see the note
+in [decisions.md](decisions.md).

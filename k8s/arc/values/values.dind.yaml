@@ -4,14 +4,10 @@ githubConfigSecret: arc-github-auth
 
 template:
   spec:
-    # Optional: hardcode registry DNS if you don't have cluster DNS for it.
-    # hostAliases:
-    #   - ip: "10.0.1.99"          # node IP where Traefik listens
-    #     hostnames: ["registry.local"]
 
     initContainers:
       - name: init-dind-externals
-        image: registry.local/runner:latest
+        image: mycr.registry.svc.cluster.local/runner:latest # any registry the cluster can pull from
         command:
           ["cp", "-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
         volumeMounts:
@@ -20,7 +16,7 @@ template:
 
     containers:
       - name: dind
-        image: docker:dind
+        image: docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac
         args:
           - dockerd
           - --host=unix:///var/run/docker.sock
@@ -44,9 +40,9 @@ template:
             mountPath: /home/runner/externals
           - name: dind-storage
             mountPath: /var/lib/docker
-          # Optional: trust custom registry CA
+          # Optional: trust a registry with a private CA -- see docs/setup-registry.md
           # - name: registry-ca
-          #   mountPath: /etc/docker/certs.d/registry.local
+          #   mountPath: /etc/docker/certs.d/mycr.registry.svc.cluster.local
           #   readOnly: true
           # Optional: registry auth for DinD pulls
           # - name: docker-secret
@@ -55,7 +51,7 @@ template:
           #   readOnly: true
 
       - name: runner # must be exactly "runner"
-        image: registry.local/runner:latest
+        image: mycr.registry.svc.cluster.local/runner:latest # any registry the cluster can pull from
         command: ["/home/runner/run.sh"]
         env:
           - name: DOCKER_HOST
@@ -63,6 +59,7 @@ template:
           - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
             value: "120"
           # Optional: point to your actions cache server (results service).
+          # Must match API_BASE_URL in k8s/cache-server/deployment.yaml.
           # - name: ACTIONS_RESULTS_URL
           #   value: "http://actions-cache-server.actions-cache.svc.cluster.local/"
           # - name: CUSTOM_ACTIONS_RESULTS_URL
@@ -88,10 +85,13 @@ template:
         emptyDir: {}
       - name: dind-storage
         emptyDir: {}
-      # Optional: trust custom registry CA
+      # Optional: registry CA, paired with the mount above
       # - name: registry-ca
       #   secret:
-      #     secretName: registry-ca # must contain key "ca.crt"
+      #     secretName: registry-ca
+      #     items:
+      #       - key: ca.crt
+      #         path: ca.crt
       # Optional: registry auth for runner container
       # - name: docker-secret
       #   secret:

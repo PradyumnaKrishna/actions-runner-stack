@@ -14,30 +14,44 @@ spec:
     spec:
       containers:
       - name: registry
-        image: registry:2
+        image: registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
         ports:
-        - containerPort: 5000
+        - containerPort: 443
         env:
         - name: REGISTRY_HTTP_ADDR
-          value: :5000
+          value: :443
         - name: REGISTRY_STORAGE_DELETE_ENABLED
           value: "true"
+        - name: REGISTRY_HTTP_TLS_CERTIFICATE
+          value: /certs/tls.crt
+        - name: REGISTRY_HTTP_TLS_KEY
+          value: /certs/tls.key
         volumeMounts:
         - name: data
           mountPath: /var/lib/registry
+        - name: certs
+          mountPath: /certs
+          readOnly: true
       volumes:
       - name: data
         persistentVolumeClaim:
           claimName: registry-data
+      - name: certs
+        secret:
+          secretName: mycr-tls
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: registry
+  # Named mycr so in-cluster clients can use mycr.registry.svc.cluster.local.
+  name: mycr
   namespace: registry
 spec:
+  # ClusterIP only; nothing is exposed outside the cluster. Pinned so nodes
+  # can map the hostname to a stable address.
+  clusterIP: 10.43.0.100
   selector: { app: registry }
   ports:
-  - name: http
-    port: 5000
-    targetPort: 5000
+  - name: https
+    port: 443
+    targetPort: 443

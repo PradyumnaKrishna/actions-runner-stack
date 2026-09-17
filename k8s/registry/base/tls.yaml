@@ -1,0 +1,47 @@
+# Private CA for the registry, issued and renewed by cert-manager.
+# Clients (nodes and dockerd) trust the CA; see docs/setup-registry.md.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: registry-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: actions-runner-stack-ca
+  secretName: registry-ca
+  duration: 87600h    # 10 years
+  renewBefore: 8760h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: registry-ca
+spec:
+  ca:
+    secretName: registry-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mycr-tls
+  namespace: registry
+spec:
+  secretName: mycr-tls
+  dnsNames:
+    - mycr.registry.svc.cluster.local
+  issuerRef:
+    name: registry-ca
+    kind: ClusterIssuer
