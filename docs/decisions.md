@@ -17,15 +17,30 @@ Docker defaults to MTU 1500. In some CNI / overlay / VPN setups the effective MT
 
 Setting `--mtu=1300` on `dockerd` avoids fragmentation in those networks. Adjust based on your cluster MTU.
 
-## Why `hostAliases` for the registry?
+## How the registry is reached
 
-The runners need to resolve the registry hostname. If cluster DNS does not resolve it, we pin the registry host to a node IP. Prefer a real DNS record or a CoreDNS override if possible.
+The registry is a ClusterIP Service named `mycr`, so pods resolve
+`mycr.registry.svc.cluster.local` through cluster DNS like any other service.
+
+Image pulls are different: they are performed by the container runtime on the
+node, which is outside the cluster network and does not use cluster DNS. Nodes
+map the name to the Service's fixed ClusterIP in `/etc/hosts`, which is why the
+Service pins its address.
+
+The registry has no authentication: anything that can reach the Service and
+trusts the CA can push and delete images. TLS does not change that. Add
+htpasswd auth or a NetworkPolicy if the cluster is shared.
+
+TLS comes from a private CA managed by cert-manager. Installing that CA into
+each node's system trust store covers containerd, podman and curl at once, so
+no registry-specific runtime configuration is needed. Runner pods get the same
+CA mounted into the DinD sidecar.
 
 ## Why patch `Runner.Worker.dll` in the runner image?
 
-We use a custom actions cache server and set `ACTIONS_RESULTS_URL`/`CUSTOM_ACTIONS_RESULTS_URL` to redirect results traffic. The runner image includes a small patch to allow this override. This is a pragmatic workaround until upstream supports a first-class config.
+We use a custom actions cache server and set `ACTIONS_RESULTS_URL`/`CUSTOM_ACTIONS_RESULTS_URL` to redirect results traffic. The runner always prefers the `ACTIONS_RESULTS_URL` that GitHub sends with each job, so the patch renames that lookup string inside `Runner.Worker.dll` to `ACTIONS_RESULTS_ORL`. The lookup misses and the runner falls back to `CUSTOM_ACTIONS_RESULTS_URL`. This is a pragmatic workaround until upstream supports a first-class config.
 
-TODO: confirm the exact reason and update this section.
+Because it patches bytes in a compiled binary, the runner base image is pinned and the build fails if the patch doesn't apply. When bumping the runner version, keep it recent: GitHub stops sending jobs to deprecated runner versions, and ARC runners can't self-update.
 
 ## Why are we defining the DinD sidecar explicitly?
 

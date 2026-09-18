@@ -22,6 +22,10 @@ docker build -t registry.local/runner:latest -f images/runner/Dockerfile .
 docker push registry.local/runner:latest
 ```
 
+The upstream images are multi-arch (amd64 and arm64). The build produces your
+build host's architecture, so build on the architecture your nodes run, or use
+`--platform` if they differ.
+
 ## 3) Create namespaces and secrets
 
 ```bash
