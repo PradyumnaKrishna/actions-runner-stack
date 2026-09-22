@@ -61,9 +61,9 @@ template:
           # Optional: point to your actions cache server (results service).
           # Must match API_BASE_URL in k8s/cache-server/deployment.yaml.
           # - name: ACTIONS_RESULTS_URL
-          #   value: "http://actions-cache-server.actions-cache.svc.cluster.local/"
+          #   value: "http://actions-cache-server.actions-cache.svc.cluster.local"
           # - name: CUSTOM_ACTIONS_RESULTS_URL
-          #   value: "http://actions-cache-server.actions-cache.svc.cluster.local/"
+          #   value: "http://actions-cache-server.actions-cache.svc.cluster.local"
           - name: DOCKER_CONFIG
             value: /home/runner/.docker
         # Optional: only enable if your workflows need privileged operations.

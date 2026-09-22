@@ -13,7 +13,7 @@ The Deployment sets `API_BASE_URL` to the public base URL the cache server uses 
 Cache traffic comes from the runner container itself, which runs inside a pod and so resolves cluster DNS. No `hostAliases` or node-level exposure is needed. The runner container is configured with `ACTIONS_RESULTS_URL` and `CUSTOM_ACTIONS_RESULTS_URL` pointing at the Service:
 
 ```
-http://actions-cache-server.actions-cache.svc.cluster.local/
+http://actions-cache-server.actions-cache.svc.cluster.local
 ```
 
 (This is unlike the runner image itself, which is pulled by the node's container runtime and therefore does need an address the node can reach — see [setup-registry.md](setup-registry.md).)
@@ -55,9 +55,9 @@ Uncomment and set the cache URLs:
 
 ```yaml
 - name: ACTIONS_RESULTS_URL
-  value: "http://actions-cache-server.actions-cache.svc.cluster.local/"
+  value: "http://actions-cache-server.actions-cache.svc.cluster.local"
 - name: CUSTOM_ACTIONS_RESULTS_URL
-  value: "http://actions-cache-server.actions-cache.svc.cluster.local/"
+  value: "http://actions-cache-server.actions-cache.svc.cluster.local"
 ```
 
 These must match `API_BASE_URL` in the cache server deployment exactly.
