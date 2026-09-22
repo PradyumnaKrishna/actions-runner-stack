@@ -7,7 +7,8 @@ template:
 
     initContainers:
       - name: init-dind-externals
-        image: mycr.registry.svc.cluster.local/runner:latest # any registry the cluster can pull from
+        image: mycr.registry.svc.cluster.local/runner:2.337.0@sha256:744a3f0a92c16e7afb52cd6f75836ddd9124d8048d925e1de17a79322aa2c04b # any registry the cluster can pull from, pinned by digest
+        imagePullPolicy: IfNotPresent
         command:
           ["cp", "-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
         volumeMounts:
@@ -51,7 +52,8 @@ template:
           #   readOnly: true
 
       - name: runner # must be exactly "runner"
-        image: mycr.registry.svc.cluster.local/runner:latest # any registry the cluster can pull from
+        image: mycr.registry.svc.cluster.local/runner:2.337.0@sha256:744a3f0a92c16e7afb52cd6f75836ddd9124d8048d925e1de17a79322aa2c04b # any registry the cluster can pull from, pinned by digest
+        imagePullPolicy: IfNotPresent
         command: ["/home/runner/run.sh"]
         env:
           - name: DOCKER_HOST

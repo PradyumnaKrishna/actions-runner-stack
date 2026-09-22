@@ -19,9 +19,11 @@ This guide describes the core ARC runner setup. Registry and cache server setup 
 Build and push the runner image to a registry your cluster can reach, or update `k8s/arc/values/values.dind.yaml` to use any existing image:
 
 ```bash
-docker build -t registry.local/runner:latest -f images/runner/Dockerfile .
-docker push registry.local/runner:latest
+docker build -t mycr.registry.svc.cluster.local/runner:2.337.0 -f images/runner/Dockerfile .
+docker push mycr.registry.svc.cluster.local/runner:2.337.0
 ```
+
+The image digest then goes into `k8s/arc/values/values.dind.yaml` so the deployed image is unambiguous.
 
 The upstream images are multi-arch (amd64 and arm64). The build produces your
 build host's architecture, so build on the architecture your nodes run, or use

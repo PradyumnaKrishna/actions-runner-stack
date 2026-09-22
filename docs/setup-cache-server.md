@@ -69,9 +69,11 @@ The GitHub runner binary needs a small patch to allow the custom cache URL. We b
 Build and push the image, then make sure `k8s/arc/values/values.dind.yaml` points to it:
 
 ```bash
-docker build -t registry.local/runner:latest -f images/runner/Dockerfile .
-docker push registry.local/runner:latest
+docker build -t mycr.registry.svc.cluster.local/runner:2.337.0 -f images/runner/Dockerfile .
+docker push mycr.registry.svc.cluster.local/runner:2.337.0
 ```
+
+The image digest then goes into `k8s/arc/values/values.dind.yaml` so the deployed image is unambiguous.
 
 ## Step 5: Deploy or upgrade the runner scale set
 
