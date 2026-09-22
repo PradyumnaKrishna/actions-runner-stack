@@ -1,0 +1,15 @@
+# 20Gi against k3s' default local-path provisioner, which is node-local: the
+# data does not survive the node. Retention is set to 90d on the Deployment,
+# so size this for the retention window you actually want to keep.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: monitoring
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi

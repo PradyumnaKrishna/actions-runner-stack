@@ -1,0 +1,22 @@
+# Values for the gha-runner-scale-set-controller Helm chart (modern ARC).
+#
+# The metrics block is what makes the stack observable: without it the
+# controller and the per-scale-set listener never open :8080, and the
+# Prometheus jobs in k8s/monitoring/prometheus/prometheus.yaml scrape nothing.
+replicaCount: 1
+
+flags:
+  logFormat: json
+  logLevel: info
+
+metrics:
+  controllerManagerAddr: ":8080"
+  listenerAddr: ":8080"
+  listenerEndpoint: "/metrics"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 256Mi

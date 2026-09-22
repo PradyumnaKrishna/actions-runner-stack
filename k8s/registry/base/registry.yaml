@@ -17,10 +17,19 @@ spec:
         image: registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
         ports:
         - containerPort: 443
+        - name: metrics
+          containerPort: 5001
         env:
         - name: REGISTRY_HTTP_ADDR
           value: :443
         - name: REGISTRY_STORAGE_DELETE_ENABLED
+          value: "true"
+        # Debug listener, plain HTTP, separate from the TLS registry port. This
+        # is what the `registry` scrape job in k8s/monitoring reads; without it
+        # that job has nothing to talk to.
+        - name: REGISTRY_HTTP_DEBUG_ADDR
+          value: :5001
+        - name: REGISTRY_HTTP_DEBUG_PROMETHEUS_ENABLED
           value: "true"
         - name: REGISTRY_HTTP_TLS_CERTIFICATE
           value: /certs/tls.crt
@@ -55,3 +64,6 @@ spec:
   - name: https
     port: 443
     targetPort: 443
+  - name: metrics
+    port: 5001
+    targetPort: 5001

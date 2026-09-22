@@ -12,6 +12,7 @@ This guide describes the core ARC runner setup. Registry and cache server setup 
 
 - Registry: [setup-registry.md](setup-registry.md)
 - Cache server: [setup-cache-server.md](setup-cache-server.md)
+- Monitoring: [setup-monitoring.md](setup-monitoring.md)
 
 ## 2) Build and push the runner image
 
@@ -78,6 +79,7 @@ Edit `k8s/arc/values/values.dind.yaml`:
 - Ensure the runner image points to the registry and tag you built.
 - If you use a private registry, follow [setup-registry.md](setup-registry.md) to set up the CA secret and mounts.
 - If you use a cache server, follow [setup-cache-server.md](setup-cache-server.md) to set `ACTIONS_RESULTS_URL` and `CUSTOM_ACTIONS_RESULTS_URL`.
+- If you want metrics (works with an existing Prometheus or the bundled quick start), follow [setup-monitoring.md](setup-monitoring.md). The controller values in `k8s/arc/values/values.controller.yaml` are what expose them; without those, nothing is scrapeable.
 - Uncomment the docker auth secret mount/volume if your registry requires auth
 
 ## 5) Install ARC via Helm
@@ -89,6 +91,7 @@ Follow the official ARC docs to install the controller and runner scale set. For
 helm install arc \
   --namespace arc-systems \
   --create-namespace \
+  -f k8s/arc/values/values.controller.yaml \
   oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
 
 # Runner scale set

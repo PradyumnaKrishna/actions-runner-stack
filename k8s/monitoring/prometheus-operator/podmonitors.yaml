@@ -1,0 +1,45 @@
+# For clusters that already run the Prometheus Operator (e.g. kube-prometheus-stack).
+# Each PodMonitor lives in its target's namespace and scrapes the container port named
+# `metrics`. The Operator adds pod/namespace/container labels itself. Its Prometheus only
+# selects PodMonitors matching its podMonitorSelector: see docs/setup-monitoring.md.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: arc-listener
+  namespace: arc-systems
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: runner-scale-set-listener
+  podMetricsEndpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: arc-controller
+  namespace: arc-systems
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gha-rs-controller
+  podMetricsEndpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: registry
+  namespace: registry
+spec:
+  selector:
+    matchLabels:
+      app: registry
+  podMetricsEndpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s
